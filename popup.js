@@ -3,8 +3,7 @@ document.addEventListener("DOMContentLoaded", () => {
     account: document.getElementById("account"),
     amount: document.getElementById("amount"),
     vs: document.getElementById("vs"),
-    message: document.getElementById("message"),
-    currency: document.getElementById("currency")
+    message: document.getElementById("message")
   };
   const pasteArea = document.getElementById("paste-area");
 
@@ -14,8 +13,7 @@ document.addEventListener("DOMContentLoaded", () => {
         account: inputs.account.value,
         amount: inputs.amount.value,
         vs: inputs.vs.value,
-        message: inputs.message.value,
-        currency: inputs.currency.value
+        message: inputs.message.value
       }
     });
   };
@@ -66,7 +64,6 @@ document.addEventListener("DOMContentLoaded", () => {
           message: inputs.message.value
       };
 
-      // --- A) HLEDÁNÍ ÚČTU NEBO IBANU ---
       const czSkIbanMatch = rawText.match(/(?:CZ|SK)[0-9]{2}(?:[\s]*[0-9]){20}/i);
       const accountMatch = rawText.match(/([0-9\-]{2,16}\/[0-9]{4})/);
       
@@ -85,7 +82,6 @@ document.addEventListener("DOMContentLoaded", () => {
          }
       }
 
-      // --- B) HLEDÁNÍ VARIABILNÍHO SYMBOLU (OPRAVENO: už ignoruje Konstantní symbol) ---
       const vsKeywordMatch = rawText.match(/(?:VS|Variabilní symbol|Variabilný symbol|Var\.\s*sym\.)[\s.:-]*([0-9]{4,10})/i);
       if (vsKeywordMatch) {
          inputs.vs.value = vsKeywordMatch[1];
@@ -95,7 +91,6 @@ document.addEventListener("DOMContentLoaded", () => {
          wasMatched = true;
       }
 
-      // --- C) HLEDÁNÍ ČÁSTKY ---
       const amountCurrencyMatch = rawText.match(/([0-9]+(?:[\s]*[0-9]+)*(?:[.,][0-9]{1,2})?)\s*(?:Kč|CZK|EUR|€)/i);
       const amountKeywordMatch = rawText.match(/(?:Celkem|K úhradě|Spolu|Částka|Cena)[\s:]*([0-9]+(?:[\s]*[0-9]+)*(?:[.,][0-9]{1,2})?)/i);
       
@@ -110,7 +105,6 @@ document.addEventListener("DOMContentLoaded", () => {
          wasMatched = true;
       }
 
-      // --- D) ZBYTKOVÝ TEXT (ZPRÁVA PRO PŘÍJEMCE) ---
       if (!wasMatched && rawText.length > 0 && rawText.length < 50 && !/^[0-9]{1,2}\.[0-9]{1,2}\.[0-9]{4}$/.test(cleanText)) {
          inputs.message.value = rawText;
          wasMatched = true; 
@@ -122,12 +116,9 @@ document.addEventListener("DOMContentLoaded", () => {
       if (inputs.message.value !== previousValues.message) highlightInput(inputs.message);
 
       saveFormData(); 
-      
-      // Zpětná vazba teď hlásí úspěch, pokud skript cokoliv smysluplného našel (i když už to v políčku bylo)
       return wasMatched;
   };
 
-  // Reakce na vložení textu (čistě přes Ctrl+V, odstraněny konfliktní akce)
   if (pasteArea) {
       pasteArea.addEventListener("paste", (e) => {
           e.preventDefault(); 
@@ -145,7 +136,6 @@ document.addEventListener("DOMContentLoaded", () => {
       if (result.savedFormData.amount) inputs.amount.value = result.savedFormData.amount;
       if (result.savedFormData.vs) inputs.vs.value = result.savedFormData.vs;
       if (result.savedFormData.message) inputs.message.value = result.savedFormData.message;
-      if (result.savedFormData.currency) inputs.currency.value = result.savedFormData.currency;
     }
 
     if (result.selectedPaymentText) {
@@ -158,7 +148,6 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("generate-btn").addEventListener("click", () => {
     const account = inputs.account.value;
     let amount = inputs.amount.value;
-    const currency = inputs.currency.value;
     const vs = inputs.vs.value;
     const message = inputs.message.value;
     
@@ -197,15 +186,18 @@ document.addEventListener("DOMContentLoaded", () => {
     
     if (amount) {
         amount = amount.replace(',', '.'); 
-        spayd += `AM:${amount}*CC:${currency}*`;
+        spayd += `AM:${amount}*CC:CZK*`;
     }
+
     if (vs) {
         spayd += `X-VS:${vs}*`;
     }
+    
     if (message) {
         const cleanMsg = message.substring(0, 60).normalize("NFD").replace(/[\u0300-\u036f]/g, "");
         spayd += `MSG:${encodeURIComponent(cleanMsg)}*`;
     }
+    
     spayd = spayd.slice(0, -1); 
 
     const resultDiv = document.getElementById("qr-result");
@@ -238,5 +230,13 @@ document.addEventListener("DOMContentLoaded", () => {
     };
     
     resultDiv.appendChild(clearBtn);
+
+    // --- NOVÉ: Plynulý přesun (odscrollování) na konec okna, aby uživatel viděl výsledek ---
+    setTimeout(() => {
+        window.scrollTo({
+            top: document.body.scrollHeight,
+            behavior: "smooth"
+        });
+    }, 100); // 100 milisekund zpoždění dá prohlížeči čas okno nejprve fyzicky roztáhnout
   });
 });
