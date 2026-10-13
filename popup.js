@@ -55,6 +55,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const parseTextAndFill = (rawText) => {
       let wasMatched = false;
+      
+      const cleanNormalizedText = rawText.replace(/\|/g, ' ').replace(/\s+/g, ' ');
       const cleanText = rawText.replace(/\s+/g, '');
       
       const previousValues = {
@@ -64,17 +66,18 @@ document.addEventListener("DOMContentLoaded", () => {
           message: inputs.message.value
       };
 
-      const czSkIbanMatch = rawText.match(/(?:CZ|SK)[0-9]{2}(?:[\s]*[0-9]){20}/i);
-      const accountMatch = rawText.match(/([0-9\-]{2,16}\/[0-9]{4})/);
+      // --- A) HLEDÁNÍ ÚČTU NEBO IBANU ---
+      const czSkIbanMatch = cleanNormalizedText.match(/(?:CZ|SK)[0-9]{2}(?:[\s]*[0-9]){20}/i) || rawText.match(/(?:CZ|SK)[0-9]{2}(?:[\s]*[0-9]){20}/i);
+      const accountMatch = cleanNormalizedText.match(/([0-9\-]{2,16}\/[0-9]{4})/);
       
       if (czSkIbanMatch) {
         inputs.account.value = czSkIbanMatch[0].replace(/\s+/g, '').toUpperCase();
         wasMatched = true;
       } else if (accountMatch) {
-        inputs.account.value = accountMatch[0];
+        inputs.account.value = accountMatch[1];
         wasMatched = true;
       } else {
-         const ibanKeywordMatch = rawText.match(/IBAN[\s:]*([A-Za-z]{2}[0-9]{2}[A-Za-z0-9\s]{11,30})/i);
+         const ibanKeywordMatch = cleanNormalizedText.match(/IBAN[\s:]*([A-Za-z]{2}[0-9]{2}[A-Za-z0-9\s]{11,30})/i);
          if (ibanKeywordMatch) {
              const rawIban = ibanKeywordMatch[1].split(/[a-z]/)[0];
              inputs.account.value = rawIban.replace(/\s+/g, '').toUpperCase();
@@ -82,7 +85,8 @@ document.addEventListener("DOMContentLoaded", () => {
          }
       }
 
-      const vsKeywordMatch = rawText.match(/(?:VS|Variabilní symbol|Variabilný symbol|Var\.\s*sym\.)[\s.:-]*([0-9]{4,10})/i);
+      // --- B) HLEDÁNÍ VARIABILNÍHO SYMBOLU ---
+      const vsKeywordMatch = cleanNormalizedText.match(/(?:VS|Variabilní symbol|Variabilný symbol|Var\.\s*sym\.)[\s.:-]*([0-9]{4,10})/i);
       if (vsKeywordMatch) {
          inputs.vs.value = vsKeywordMatch[1];
          wasMatched = true;
@@ -91,20 +95,51 @@ document.addEventListener("DOMContentLoaded", () => {
          wasMatched = true;
       }
 
-      const amountCurrencyMatch = rawText.match(/([0-9]+(?:[\s]*[0-9]+)*(?:[.,][0-9]{1,2})?)\s*(?:Kč|CZK|EUR|€)/i);
-      const amountKeywordMatch = rawText.match(/(?:Celkem|K úhradě|Spolu|Částka|Cena)[\s:]*([0-9]+(?:[\s]*[0-9]+)*(?:[.,][0-9]{1,2})?)/i);
-      
-      if (amountCurrencyMatch) {
-         inputs.amount.value = amountCurrencyMatch[1].replace(/\s+/g, '').replace(".", ",");
-         wasMatched = true;
-      } else if (amountKeywordMatch) {
-         inputs.amount.value = amountKeywordMatch[1].replace(/\s+/g, '').replace(".", ",");
-         wasMatched = true;
-      } else if (/^[0-9]+[.,][0-9]{1,2}$/.test(cleanText)) {
-         inputs.amount.value = cleanText.replace(".", ",");
-         wasMatched = true;
+      // --- C) HLEDÁNÍ ČÁSTKY (Nejchytřejší logika: Zkombinuje měnu a max hodnotu) ---
+      let maxVal = 0;
+      let maxStr = null;
+
+      // KROK 1: Nejprve hledáme POUZE čísla, za kterými je MĚNA (Kč, CZK, €, EUR).
+      // Tím totálně odfiltrujeme slepené sloupce a řádky zboží v tabulkách (jako např. DPH 12 a cena 293.75).
+      const currencyRegex = /([0-9]{1,3}(?:[ \u00A0]*[0-9]{3})*(?:[.,][0-9]{1,2})?)\s*(?:Kč|CZK|EUR|€)/gi;
+      let matchCurrency;
+      while ((matchCurrency = currencyRegex.exec(cleanNormalizedText)) !== null) {
+          let val = parseFloat(matchCurrency[1].replace(/\s+/g, '').replace(',', '.'));
+          if (!isNaN(val) && val > maxVal) {
+              maxVal = val;
+              maxStr = matchCurrency[1].replace(/\s+/g, '').replace('.', ',');
+          }
       }
 
+      // KROK 2: Pokud se v textu vůbec nenašlo slovo "Kč" (jako u naší 1. faktury), vezmeme max desetinné číslo z RAW textu.
+      // Použijeme RAW text, abychom nezničili případné tabelátory a předešli spojování sloupců.
+      if (maxVal === 0) {
+          const decimalRegex = /(?:^|[^\d.,])([0-9]{1,3}(?:[ \u00A0]?[0-9]{3})*[.,][0-9]{2})(?:[^\d.,]|$)/g;
+          let matchDecimal;
+          while ((matchDecimal = decimalRegex.exec(rawText)) !== null) {
+              let val = parseFloat(matchDecimal[1].replace(/\s+/g, '').replace(',', '.'));
+              if (!isNaN(val) && val > maxVal) {
+                  maxVal = val;
+                  maxStr = matchDecimal[1].replace(/\s+/g, '').replace('.', ',');
+              }
+          }
+      }
+
+      // KROK 3: Konečný fallback přes silná klíčová slova (pro jistotu).
+      if (maxVal === 0) {
+          const strictKeywordRegex = /(?:K zaplacení|Celkem k úhradě|Celková cena vč\. DPH|K úhradě|Celkem s DPH)[\s:\-|]*([0-9]{1,3}(?:[\s]*[0-9]{3})*(?:[.,][0-9]{1,2})?)(?!\d)/i;
+          const kwMatch = cleanNormalizedText.match(strictKeywordRegex);
+          if (kwMatch) {
+              maxStr = kwMatch[1].replace(/\s+/g, '').replace('.', ',');
+          }
+      }
+
+      if (maxStr) {
+          inputs.amount.value = maxStr;
+          wasMatched = true;
+      }
+
+      // --- D) ZPRÁVA PRO PŘÍJEMCE ---
       if (!wasMatched && rawText.length > 0 && rawText.length < 50 && !/^[0-9]{1,2}\.[0-9]{1,2}\.[0-9]{4}$/.test(cleanText)) {
          inputs.message.value = rawText;
          wasMatched = true; 
@@ -231,12 +266,11 @@ document.addEventListener("DOMContentLoaded", () => {
     
     resultDiv.appendChild(clearBtn);
 
-    // --- NOVÉ: Plynulý přesun (odscrollování) na konec okna, aby uživatel viděl výsledek ---
     setTimeout(() => {
         window.scrollTo({
             top: document.body.scrollHeight,
             behavior: "smooth"
         });
-    }, 100); // 100 milisekund zpoždění dá prohlížeči čas okno nejprve fyzicky roztáhnout
+    }, 100); 
   });
 });
