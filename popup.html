@@ -18,12 +18,14 @@
       color: #1e293b;
     }
 
-    /* Hlavička s názvem a tvým logem vpravo */
+    /* HLAVIČKA */
     .header {
       display: flex;
       align-items: center;
       justify-content: space-between;
       margin-bottom: 20px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid #e2e8f0;
     }
     
     .title-area h1 {
@@ -36,6 +38,26 @@
     .title-area p {
       font-size: 12px;
       color: #64748b;
+      margin-bottom: 6px;
+    }
+
+    /* Textový odkaz na podporu hned nahoře */
+    .support-link-text {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 700;
+      color: #059669;
+      text-decoration: none;
+      background: #ecfdf5;
+      padding: 4px 10px;
+      border-radius: 12px;
+      border: 1px solid #a7f3d0;
+      transition: background 0.2s, color 0.2s;
+    }
+
+    .support-link-text:hover {
+      background: #10b981;
+      color: white;
     }
 
     .logo-img {
@@ -167,11 +189,13 @@
 </head>
 <body>
 
-  <!-- Hlavička -->
+  <!-- HLAVIČKA -->
   <div class="header">
     <div class="title-area">
-      <h1>QR Platba</h1>
-      <p>SPAYD formát pro české banky</p>
+      <h1>QR Platba CZ</h1>
+      <p>Generátor pro české banky</p>
+      <!-- Textový odkaz hned nahoře -->
+      <a href="https://ko-fi.com/tomrusher" target="_blank" class="support-link-text">❤️ Podpořit tvůrce</a>
     </div>
     <img src="images/icon128.png" alt="Logo" class="logo-img">
   </div>
@@ -184,10 +208,13 @@
       <p>Kód se tvoří přímo ve tvém prohlížeči.</p>
     </div>
   </div>
-<div class="form-group" style="background: #f8fafc; padding: 12px; border-radius: 10px; border: 1px dashed #94a3b8; margin-bottom: 20px;">
+
+  <!-- Vkládací pole pro Ctrl+V -->
+  <div class="form-group" style="background: #f8fafc; padding: 12px; border-radius: 10px; border: 1px dashed #94a3b8; margin-bottom: 20px;">
     <label style="color: #0f172a; margin-bottom: 8px;">Zkopírovali jste něco? (Ctrl+V)</label>
     <textarea id="paste-area" placeholder="Sem vložte text z faktury..." style="height: 42px; border-color: #cbd5e1; background: white; font-size: 13px; padding: 8px 12px;"></textarea>
   </div>
+
   <!-- Vlastní formulář -->
   <div class="form-container">
     <div class="form-group">
@@ -202,9 +229,7 @@
       </div>
       <div class="form-group">
         <label>Měna</label>
-        <select id="currency">
-          <option value="CZK">CZK</option>
-        </select>
+        <input type="text" value="CZK" disabled style="background: #f1f5f9; color: #64748b; text-align: center;">
       </div>
     </div>
     
@@ -220,17 +245,12 @@
 
     <button class="generate-btn" id="generate-btn">Vygenerovat QR platbu</button>
     
-    <!-- Místo pro zobrazení výsledku -->
+    <!-- Místo pro zobrazení výsledku a QR kódu -->
     <div id="qr-result"></div>
   </div>
 
-  <!-- Tady se připojuje soubor s logikou popup.js -->
-  <script src="popup.js"></script>
-  <!-- Tady se připojuje stažená knihovna -->
+  <!-- Knihovny a skripty -->
   <script src="qrcode.min.js"></script>
-  <!-- Tady je tvůj skript s logikou -->
   <script src="popup.js"></script>
-</body>
-</html>
 </body>
 </html>
